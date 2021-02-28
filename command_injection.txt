@@ -1,0 +1,20 @@
+command injection:
+
+PHP has a command called system: https://www.php.net/manual/en/function.system
+
+system ( string $command , int &$result_code = null ) : string|false
+
+A lot of times this is used in a webapp to do things like this
+
+system( "cat file | grep " . $input, null)
+
+In this situation, the intent is being able to feed something into a form and using that string to
+grep through a file.  However if you feed
+
+;ls -al
+
+as input to the script, system is really just passing this input along to the shell.  bash will happily run the ls command and php
+will give you the output.
+
+defense against command injection, at least in this case:
+php has an escapeshellarg() or escapeshellcmd() function to filter the user input to disable attacks like this.

